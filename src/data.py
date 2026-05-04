@@ -106,23 +106,25 @@ class CocoLicensePlateDataset(Dataset):
         return len(self.categories) + 1   # +1 for background
 
 
-def get_rcnn_dataloader(split="train", batch_size=4, num_workers=2, shuffle=None):
+# Torchvision Faster-RCNN needs a custom collate (variable-size targets)
+def collate_fn(batch):
+    return tuple(zip(*batch))
+    
+def get_rcnn_dataloader(split="train", batch_size=4, num_workers=0, shuffle=None):
     """Returns a DataLoader for the Faster R-CNN pipeline."""
     if shuffle is None:
         shuffle = (split == "train")
 
     dataset = CocoLicensePlateDataset(split=split)
 
-    # Torchvision Faster-RCNN needs a custom collate (variable-size targets)
-    def collate_fn(batch):
-        return tuple(zip(*batch))
+
 
     return DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=shuffle,
         num_workers=num_workers,
-        collate_fn=collate_fn,
+        collate_fn=collate_fn(),
     ), dataset.num_classes
 
 #  2.  YOLO Dataset path helper

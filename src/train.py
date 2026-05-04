@@ -26,11 +26,12 @@ RCNN_BATCH_SIZE   = 64
 YOLO_BATCH_SIZE   = 64
 YOLO_IMG_SIZE     = 640
 DEVICE            = "cuda" if torch.cuda.is_available() else "cpu"
+NUM_WORKERS      = 0
 
 #  1. Train Faster R-CNN
 
 def train_rcnn(epochs: int = DEFAULT_EPOCHS):
-    train_loader, num_classes = get_rcnn_dataloader("train", batch_size=RCNN_BATCH_SIZE)
+    train_loader, num_classes = get_rcnn_dataloader("train", batch_size=RCNN_BATCH_SIZE, num_workers=NUM_WORKERS)
     val_loader,   _           = get_rcnn_dataloader("validation", batch_size=1)
 
     model     = build_faster_rcnn(num_classes=num_classes, pretrained=True)
