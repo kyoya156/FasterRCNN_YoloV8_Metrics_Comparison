@@ -1,0 +1,7 @@
+# data Ignore data files but keep README.md for structure placeholder on git
+#R-CNN
+data/R-CNN/*
+!data/R-CNN/README.md
+#YOLO
+data/Yolo/*
+!data/Yolo/README.md
