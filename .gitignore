@@ -11,3 +11,5 @@ data/Yolo/*
 
 #downloaded models
 *.pt
+
+src/__pycache__/*

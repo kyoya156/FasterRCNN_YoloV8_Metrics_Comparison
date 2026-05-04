@@ -28,7 +28,7 @@ import torchvision.transforms as T
 from torch.utils.data import Dataset, DataLoader
 
 #  Paths
-ROOT = Path(__file__).parent / "data"
+ROOT = Path(__file__).parent.parent / "data"
 RCNN_ROOT = ROOT / "R-CNN"
 YOLO_ROOT = ROOT / "Yolo"
 YOLO_YAML = YOLO_ROOT / "data.yaml"

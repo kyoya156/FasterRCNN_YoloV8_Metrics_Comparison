@@ -17,10 +17,10 @@ from pathlib import Path
 from typing import Any
 
 
-CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
+CHECKPOINT_DIR = Path(__file__).parent.parent / "checkpoints"
 CHECKPOINT_DIR.mkdir(exist_ok=True)
 
-METRICS_FILE = Path(__file__).parent / "results" / "metrics.json"
+METRICS_FILE = Path(__file__).parent.parent / "results" / "metrics.json"
 METRICS_FILE.parent.mkdir(exist_ok=True)
 
 #  1.  Faster R-CNN  save / load
