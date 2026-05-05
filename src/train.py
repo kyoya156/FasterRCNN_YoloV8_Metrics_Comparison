@@ -17,7 +17,7 @@ from tqdm import tqdm
 from data import get_rcnn_dataloader, get_yolo_yaml_path
 from rcnn import build_faster_rcnn, get_rcnn_optimizer, get_rcnn_lr_scheduler
 from yolov8 import build_yolo
-from util import save_rcnn, save_yolo, CHECKPOINT_DIR
+from util import save_rcnn, save_yolo, CHECKPOINT_DIR, YOLO_RUNS_DIR
 
 # Config
 
@@ -152,7 +152,7 @@ def train_yolo(epochs: int = DEFAULT_EPOCHS):
             imgsz=YOLO_IMG_SIZE,
             batch=YOLO_BATCH_SIZE,
             device=0 if DEVICE == "cuda" else "cpu",
-            project="runs/detect",
+            project=str(YOLO_RUNS_DIR),
             name="train",
             exist_ok=True,
             patience=max(5, epochs // 3),

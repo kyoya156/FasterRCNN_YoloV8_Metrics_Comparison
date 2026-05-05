@@ -22,6 +22,8 @@ CHECKPOINT_DIR.mkdir(exist_ok=True)
 METRICS_FILE = Path(__file__).parent.parent / "results" / "metrics.json"
 METRICS_FILE.parent.mkdir(exist_ok=True)
 
+YOLO_RUNS_DIR = Path(__file__).parent.parent / "runs" / "yolo"
+
 # Faster R-CNN save / load
 
 RCNN_CKPT = CHECKPOINT_DIR / "fasterrcnn_finetuned.pth"
@@ -48,15 +50,8 @@ YOLO_CKPT = CHECKPOINT_DIR / "yolov8_finetuned.pt"
 
 
 def save_yolo(path: Path = YOLO_CKPT):
-    """
-    Ultralytics YOLO saves automatically to runs/detect/train/weights/best.pt.
-    This helper copies that checkpoint to our standard location.
-
-    Note: the `model` argument has been removed — it was unused (YOLO saves
-    its own weights internally) and was misleading.
-    """
     import shutil
-    best = Path("runs/detect/train/weights/best.pt")
+    best = YOLO_RUNS_DIR / "train" / "weights" / "best.pt"
     if best.exists():
         shutil.copy(best, path)
         size_mb = path.stat().st_size / (1024 ** 2)
