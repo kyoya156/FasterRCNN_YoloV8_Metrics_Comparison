@@ -239,7 +239,7 @@ def evaluate_rcnn(measure_latency: bool = True) -> dict:
 
     # Compute metrics 
     map50_95, _, _     = compute_dataset_map(all_preds, all_gts, iou_thresholds, score_thresh=0.05)
-    map50, precision, recall = compute_dataset_map(all_preds, all_gts, np.array([0.50]), score_thresh=0.05)
+    map50, precision, recall = compute_dataset_map(all_preds, all_gts, np.array([0.50]), score_thresh=0.5)
 
     # Latency (GPU-synchronised)
     latency_ms = 0.0
@@ -247,7 +247,7 @@ def evaluate_rcnn(measure_latency: bool = True) -> dict:
         latency_ms = measure_latency_rcnn(model, test_loader, DEVICE, n_samples=100)
 
     size_mb = get_file_size_mb(RCNN_CKPT)
-    params  = count_parameters(model)
+    params_total, params_trainable = count_parameters(model)
 
     metrics = {
         "map50":      map50,
@@ -256,7 +256,8 @@ def evaluate_rcnn(measure_latency: bool = True) -> dict:
         "recall":     recall,
         "latency_ms": latency_ms,
         "size_mb":    size_mb,
-        "params":     params,
+        "params_total": params_total,
+        "params_trainable": params_trainable
     }
 
     print(f"  mAP@50      : {map50:.4f}")
@@ -265,7 +266,7 @@ def evaluate_rcnn(measure_latency: bool = True) -> dict:
     print(f"  Recall      : {recall:.4f}")
     print(f"  Latency     : {latency_ms:.2f} ms/img")
     print(f"  Size        : {size_mb:.1f} MB")
-    print(f"  Parameters  : {params:,}")
+    print(f"  Parameters  : {params_total:,} (total), {params_trainable:,} (trainable)")
 
     return metrics
 

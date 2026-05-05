@@ -26,6 +26,7 @@ import numpy as np
 from pathlib import Path
 from PIL import Image
 
+from torchvision.ops import nms
 from rcnn import build_faster_rcnn
 from util import load_rcnn, load_yolo, load_metrics, RCNN_CKPT
 
@@ -33,7 +34,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Inference helpers
 
-def _infer_rcnn(model, img_tensor: torch.Tensor) -> tuple:
+def _infer_rcnn(model, img_tensor: torch.Tensor, nms_thresh: float = 0.3) -> tuple:
     """
     Run Faster R-CNN on a single CxHxW float32 tensor in [0,1].
     Returns (boxes [N,4], scores [N], latency_ms) all on CPU.
@@ -57,7 +58,16 @@ def _infer_rcnn(model, img_tensor: torch.Tensor) -> tuple:
         torch.cuda.synchronize()
     lat = (time.perf_counter() - t0) * 1000.0
 
-    return out["boxes"].cpu(), out["scores"].cpu(), lat
+    boxes  = out["boxes"].cpu()
+    scores = out["scores"].cpu()
+
+    # Apply NMS to remove duplicate boxes
+    keep   = nms(boxes, scores, iou_threshold=nms_thresh)
+    boxes  = boxes[keep]
+    scores = scores[keep]
+
+
+    return boxes, scores, lat
 
 
 def _infer_yolo(model, img_path: str) -> tuple:
@@ -165,8 +175,8 @@ def _speed_chart(ax, rm, ym):
                      f"{v:.1f}", ha="center", fontsize=7, color="#9B4CE8")
 
 # Main
-
-def run(image_path: str, score_thresh: float = 0.5, save_path: str | None = None):
+from typing import Optional
+def run(image_path: str, score_thresh: float = 0.5, save_path: Optional[str] = None):
     import matplotlib
     matplotlib.use("Agg" if save_path else "TkAgg")
     import matplotlib.pyplot as plt
@@ -294,12 +304,13 @@ if __name__ == "__main__":
     parser.add_argument("--image",        required=True,  help="Path to the input image")
     parser.add_argument("--score-thresh", type=float, default=0.5,
                         help="Confidence threshold for drawing boxes (default: 0.5)")
-    parser.add_argument("--save",         type=str,   default=None,
-                        help="Save plot to this path instead of opening a window")
     args = parser.parse_args()
+
+    img_stem  = Path(args.image).stem          # e.g. "plate_001"
+    save_path = f"results/cmp_{img_stem}.png"  # e.g. "results/cmp_plate_001.png"
 
     run(
         image_path   = args.image,
         score_thresh = args.score_thresh,
-        save_path    = args.save,
+        save_path    = save_path,
     )

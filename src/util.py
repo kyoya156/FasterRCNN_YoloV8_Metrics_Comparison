@@ -13,7 +13,7 @@ import time
 import torch
 import numpy as np
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 
 CHECKPOINT_DIR = Path(__file__).parent.parent / "checkpoints"

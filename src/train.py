@@ -21,16 +21,17 @@ from util import save_rcnn, save_yolo, CHECKPOINT_DIR, YOLO_RUNS_DIR
 
 # Config
 
-DEFAULT_EPOCHS    = 5 # i used a 10000 pics dataset, so 5 epochs is a good number.
+RCNN_EPOCHS   = 15 # Faster R-CNN typically needs more epochs to converge
+YOLO_EPOCHS    = 5 # i used a 10000 pics dataset, so 5 epochs is a good number.
 RCNN_BATCH_SIZE   = 4
 YOLO_BATCH_SIZE   = -1 # use max possible batch size for YOLOv8 (auto-batch) since it handles it internally
 YOLO_IMG_SIZE     = 640
 DEVICE            = "cuda" if torch.cuda.is_available() else "cpu"
-NUM_WORKERS       = 0
+NUM_WORKERS       = 8
 
 # Train Faster R-CNN
 
-def train_rcnn(epochs: int = DEFAULT_EPOCHS):
+def train_rcnn(epochs: int = RCNN_EPOCHS):
     train_loader, num_classes = get_rcnn_dataloader("train", batch_size=RCNN_BATCH_SIZE, num_workers=NUM_WORKERS)
     val_loader,   _           = get_rcnn_dataloader("validation", batch_size=1)
 
@@ -127,7 +128,7 @@ def train_rcnn(epochs: int = DEFAULT_EPOCHS):
 
 # Train YOLOv8
 
-def train_yolo(epochs: int = DEFAULT_EPOCHS):
+def train_yolo(epochs: int = YOLO_EPOCHS):
     yaml_path = get_yolo_yaml_path()
     model     = build_yolo()
 
@@ -183,15 +184,14 @@ def train_yolo(epochs: int = DEFAULT_EPOCHS):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fine-tune Faster R-CNN and/or YOLOv8")
     parser.add_argument("--model",  choices=["rcnn", "yolo", "both"], default="both")
-    parser.add_argument("--epochs", type=int, default=DEFAULT_EPOCHS)
     args = parser.parse_args()
 
     print(f"\n[train.py] Using device: {DEVICE.upper()}\n")
 
     if args.model in ("rcnn", "both"):
-        train_rcnn(epochs=args.epochs)
+        train_rcnn(RCNN_EPOCHS)
 
     if args.model in ("yolo", "both"):
-        train_yolo(epochs=args.epochs)
+        train_yolo(YOLO_EPOCHS)
 
     print(f"\n[train.py] All done. Checkpoints saved to: {CHECKPOINT_DIR}")

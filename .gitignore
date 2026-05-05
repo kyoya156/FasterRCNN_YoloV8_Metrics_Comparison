@@ -5,6 +5,7 @@ data/R-CNN/*
 #YOLO
 data/Yolo/*
 !data/Yolo/README.md
+data/single_test/*
 
 #vscode settings
 .vscode/*
