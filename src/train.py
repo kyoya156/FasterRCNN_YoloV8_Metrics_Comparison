@@ -22,7 +22,7 @@ from util import save_rcnn, save_yolo, CHECKPOINT_DIR
 
 # Config
 
-DEFAULT_EPOCHS    = 15
+DEFAULT_EPOCHS    = 5 # i used a 10000 pics dataset, so 5 epochs is a good number.
 RCNN_BATCH_SIZE   = 4
 YOLO_BATCH_SIZE   = 64
 YOLO_IMG_SIZE     = 640
