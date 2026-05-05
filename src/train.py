@@ -24,7 +24,7 @@ from util import save_rcnn, save_yolo, CHECKPOINT_DIR
 
 DEFAULT_EPOCHS    = 5 # i used a 10000 pics dataset, so 5 epochs is a good number.
 RCNN_BATCH_SIZE   = 4
-YOLO_BATCH_SIZE   = 64
+YOLO_BATCH_SIZE   = -1 # use max possible batch size for YOLOv8 (auto-batch) since it handles it internally
 YOLO_IMG_SIZE     = 640
 DEVICE            = "cuda" if torch.cuda.is_available() else "cpu"
 NUM_WORKERS       = 0
@@ -157,6 +157,7 @@ def train_yolo(epochs: int = DEFAULT_EPOCHS):
             name="train",
             exist_ok=True,
             patience=max(5, epochs // 3),
+            cache = True,  # cache dataset in memory for faster training (if it fits)
         )
         step_bar.update(1)   # step 2
 
