@@ -3,7 +3,7 @@ util.py
 -------
 Shared utilities:
   - Saving / loading fine-tuned model checkpoints
-  - Latency measurement helper
+  - Latency measurement helper (GPU-synchronised)
   - Metric persistence (JSON)
   - Pretty console printer
 """
@@ -22,7 +22,7 @@ CHECKPOINT_DIR.mkdir(exist_ok=True)
 METRICS_FILE = Path(__file__).parent.parent / "results" / "metrics.json"
 METRICS_FILE.parent.mkdir(exist_ok=True)
 
-#  1.  Faster R-CNN  save / load
+# Faster R-CNN save / load
 
 RCNN_CKPT = CHECKPOINT_DIR / "fasterrcnn_finetuned.pth"
 
@@ -42,15 +42,18 @@ def load_rcnn(model: torch.nn.Module, path: Path = RCNN_CKPT, device: str = "cpu
     print(f"[util] Faster R-CNN loaded ← {path}")
     return model
 
-#  2.  YOLO  save / load
+# YOLO save / load 
 
 YOLO_CKPT = CHECKPOINT_DIR / "yolov8_finetuned.pt"
 
 
-def save_yolo(model, path: Path = YOLO_CKPT):
+def save_yolo(path: Path = YOLO_CKPT):
     """
-    Ultralytics YOLO saves automatically to runs/detect/train/weights/best.pt
-    This helper copies the best checkpoint to our standard location.
+    Ultralytics YOLO saves automatically to runs/detect/train/weights/best.pt.
+    This helper copies that checkpoint to our standard location.
+
+    Note: the `model` argument has been removed — it was unused (YOLO saves
+    its own weights internally) and was misleading.
     """
     import shutil
     best = Path("runs/detect/train/weights/best.pt")
@@ -71,33 +74,52 @@ def load_yolo(path: Path = YOLO_CKPT):
     print(f"[util] YOLO loaded ← {path}")
     return model
 
-#  3.  Latency measurement
+# Latency measurement 
 
 def measure_latency_rcnn(model, dataloader, device, n_samples=100) -> float:
     """
-    Measure average inference time (ms) per image for Faster R-CNN.
-    Runs a warm-up pass first.
+    Measure average *inference-only* time (ms) per image for Faster R-CNN.
+
+    Key correctness points vs. the original:
+      - Uses a pre-loaded fixed batch to exclude dataloading time from the measurement.
+      - Calls torch.cuda.synchronize() before/after timing on GPU so that
+        perf_counter doesn't return before CUDA kernels finish.
+      - Runs a dedicated warm-up pass before recording times.
     """
     model.to(device)
     model.eval()
-    times = []
 
+    # Pre-load up to n_samples+1 batches so dataloading is not timed
+    batches = []
+    for images, _ in dataloader:
+        images = [img.to(device) for img in images]
+        batches.append(images)
+        if len(batches) > n_samples:
+            break
+
+    if len(batches) < 2:
+        print("[util] Not enough samples for latency measurement.")
+        return 0.0
+
+    use_cuda = device == "cuda" and torch.cuda.is_available()
+
+    # Warm-up (excluded from timing)
     with torch.no_grad():
-        for i, (images, _) in enumerate(dataloader):
-            images = [img.to(device) for img in images]
+        _ = model(batches[0])
+        if use_cuda:
+            torch.cuda.synchronize()
 
-            # warm-up
-            if i == 0:
-                _ = model(images)
-                continue
-
-            if len(times) >= n_samples:
-                break
-
-            start = time.perf_counter()
+    times = []
+    with torch.no_grad():
+        for images in batches[1:n_samples + 1]:
+            if use_cuda:
+                torch.cuda.synchronize()
+            t0 = time.perf_counter()
             _ = model(images)
-            end = time.perf_counter()
-            times.append((end - start) / len(images) * 1000)   # ms per image
+            if use_cuda:
+                torch.cuda.synchronize()
+            t1 = time.perf_counter()
+            times.append((t1 - t0) / len(images) * 1000)   # ms per image
 
     return float(np.mean(times)) if times else 0.0
 
@@ -107,7 +129,6 @@ def measure_latency_yolo(model, image_dir: str, n_samples=100) -> float:
     Measure average inference time (ms) per image for YOLO.
     Ultralytics returns timing info inside the results object.
     """
-    from pathlib import Path
     imgs = list(Path(image_dir).rglob("*.jpg")) + \
            list(Path(image_dir).rglob("*.png"))
     imgs = imgs[:n_samples]
@@ -116,7 +137,7 @@ def measure_latency_yolo(model, image_dir: str, n_samples=100) -> float:
         print(f"[util] No images found in {image_dir} for latency measurement.")
         return 0.0
 
-    # warm-up
+    # Warm-up
     _ = model.predict(str(imgs[0]), verbose=False)
 
     times = []
@@ -127,7 +148,7 @@ def measure_latency_yolo(model, image_dir: str, n_samples=100) -> float:
 
     return float(np.mean(times)) if times else 0.0
 
-#  4.  Model size helpers
+# Model size helpers
 
 def get_file_size_mb(path: Path) -> float:
     return path.stat().st_size / (1024 ** 2) if Path(path).exists() else 0.0
@@ -136,7 +157,7 @@ def get_file_size_mb(path: Path) -> float:
 def count_torch_params(model: torch.nn.Module) -> int:
     return sum(p.numel() for p in model.parameters())
 
-#  5.  Metrics persistence
+# Metrics persistence
 
 def save_metrics(metrics: dict[str, Any], path: Path = METRICS_FILE):
     with open(path, "w") as f:
@@ -150,7 +171,7 @@ def load_metrics(path: Path = METRICS_FILE) -> dict:
     with open(path) as f:
         return json.load(f)
 
-#  6.  Pretty printer
+# Pretty printer
 
 def print_comparison_table(metrics: dict):
     """Print a formatted comparison table from the metrics dict."""
@@ -182,13 +203,12 @@ def print_comparison_table(metrics: dict):
     print(f"{'Parameters':<28} {fmt(rcnn.get('params')):>14} {fmt(yolo.get('params')):>14}")
     print("=" * len(header))
 
-    # Speed comparison narrative
     lat_r = rcnn.get("latency_ms") or 0
     lat_y = yolo.get("latency_ms") or 0
     if lat_r and lat_y and lat_y > 0:
-        ratio = lat_r / lat_y
-        faster = "YOLO" if ratio > 1 else "Faster R-CNN"
-        ratio = max(ratio, 1 / ratio)
+        ratio   = lat_r / lat_y
+        faster  = "YOLO" if ratio > 1 else "Faster R-CNN"
+        ratio   = max(ratio, 1 / ratio)
         print(f"\n  ▶  {faster} is {ratio:.1f}× faster in inference.")
 
     map_r = rcnn.get("map50") or 0
