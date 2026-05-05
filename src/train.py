@@ -13,22 +13,23 @@ Usage:
 import argparse
 import torch
 from pathlib import Path
+from tqdm import tqdm
 
 from data import get_rcnn_dataloader, get_yolo_yaml_path
 from rcnn import build_faster_rcnn, get_rcnn_optimizer, get_rcnn_lr_scheduler
 from yolov8 import build_yolo
 from util import save_rcnn, save_yolo, CHECKPOINT_DIR
 
-#  Config
+# Config
 
 DEFAULT_EPOCHS    = 15
 RCNN_BATCH_SIZE   = 4
 YOLO_BATCH_SIZE   = 64
 YOLO_IMG_SIZE     = 640
 DEVICE            = "cuda" if torch.cuda.is_available() else "cpu"
-NUM_WORKERS      = 0
+NUM_WORKERS       = 0
 
-#  1. Train Faster R-CNN
+# Train Faster R-CNN
 
 def train_rcnn(epochs: int = DEFAULT_EPOCHS):
     train_loader, num_classes = get_rcnn_dataloader("train", batch_size=RCNN_BATCH_SIZE, num_workers=NUM_WORKERS)
@@ -39,13 +40,32 @@ def train_rcnn(epochs: int = DEFAULT_EPOCHS):
     scheduler = get_rcnn_lr_scheduler(optimizer, step_size=max(1, epochs // 3))
     model.to(DEVICE)
 
-    for epoch in range(1, epochs + 1):
+    # Epoch-level progress bar
+    epoch_bar = tqdm(
+        range(1, epochs + 1),
+        desc="[RCNN] Epochs",
+        unit="epoch",
+        colour="cyan",
+        dynamic_ncols=True,
+    )
+
+    for epoch in epoch_bar:
+
         # Train
         model.train()
         epoch_loss = 0.0
         n_batches  = 0
 
-        for images, targets in train_loader:
+        train_bar = tqdm(
+            train_loader,
+            desc=f"  Train {epoch:>3}/{epochs}",
+            unit="batch",
+            leave=False,
+            colour="green",
+            dynamic_ncols=True,
+        )
+
+        for images, targets in train_bar:
             images  = [img.to(DEVICE) for img in images]
             targets = [{k: v.to(DEVICE) for k, v in t.items()} for t in targets]
 
@@ -59,16 +79,28 @@ def train_rcnn(epochs: int = DEFAULT_EPOCHS):
             epoch_loss += loss.item()
             n_batches  += 1
 
+            # Live loss in the batch bar suffix
+            train_bar.set_postfix(loss=f"{epoch_loss / n_batches:.4f}")
+
         scheduler.step()
         avg_loss = epoch_loss / max(n_batches, 1)
 
         # Validation
         val_loss = 0.0
         n_val    = 0
-        model.train()   # keep train mode so it returns loss dict on val too
+        model.train()   # keep train mode so it returns a loss dict on val too
+
+        val_bar = tqdm(
+            val_loader,
+            desc=f"  Val   {epoch:>3}/{epochs}",
+            unit="batch",
+            leave=False,
+            colour="yellow",
+            dynamic_ncols=True,
+        )
 
         with torch.no_grad():
-            for images, targets in val_loader:
+            for images, targets in val_bar:
                 images  = [img.to(DEVICE) for img in images]
                 targets = [{k: v.to(DEVICE) for k, v in t.items()} for t in targets]
 
@@ -77,50 +109,76 @@ def train_rcnn(epochs: int = DEFAULT_EPOCHS):
                 val_loss += loss.item()
                 n_val    += 1
 
+                val_bar.set_postfix(val_loss=f"{val_loss / n_val:.4f}")
+
         avg_val_loss = val_loss / max(n_val, 1)
         lr_now       = scheduler.get_last_lr()[0]
 
-        print(f"  [RCNN] Epoch {epoch:3d}/{epochs}  "
-              f"train_loss={avg_loss:.4f}  "
-              f"val_loss={avg_val_loss:.4f}  "
-              f"lr={lr_now:.2e}")
+        # Update the epoch bar with a summary for this epoch
+        epoch_bar.set_postfix(
+            train=f"{avg_loss:.4f}",
+            val=f"{avg_val_loss:.4f}",
+            lr=f"{lr_now:.2e}",
+        )
 
+    print()  # newline after epoch bar closes
     save_rcnn(model)
-    print("  [RCNN] Training complete")
+    tqdm.write("  [RCNN] Training complete ✓")
     return model
 
-#  2. Train YOLOv8
+# Train YOLOv8
 
 def train_yolo(epochs: int = DEFAULT_EPOCHS):
     yaml_path = get_yolo_yaml_path()
-    model = build_yolo()
+    model     = build_yolo()
 
-    # Train
-    model.train(
-        data=yaml_path,
-        epochs=epochs,
-        imgsz=YOLO_IMG_SIZE,
-        batch=YOLO_BATCH_SIZE,
-        device=0 if DEVICE == "cuda" else "cpu",
-        project="runs/detect",
-        name="train",
-        exist_ok=True,
-        patience=max(5, epochs // 3),
-    )
+    steps = ["Build model", "Train", "Validate", "Save checkpoint"]
 
-    # Explicit validation on the val split after training completes
-    val_results = model.val(
-        data=yaml_path,
-        split="val",
-        verbose=True,
-    )
-    print(f"  [YOLO] Val mAP@50: {val_results.box.map50:.4f}")
+    with tqdm(
+        steps,
+        desc="[YOLO] Pipeline",
+        unit="step",
+        colour="magenta",
+        dynamic_ncols=True,
+    ) as step_bar:
+        # Build model 
+        step_bar.set_description("[YOLO] Build model")
+        step_bar.update(1)
 
-    save_yolo()
-    print("  [YOLO] Training complete")
+        # Train 
+        step_bar.set_description("[YOLO] Training")
+        model.train(
+            data=yaml_path,
+            epochs=epochs,
+            imgsz=YOLO_IMG_SIZE,
+            batch=YOLO_BATCH_SIZE,
+            device=0 if DEVICE == "cuda" else "cpu",
+            project="runs/detect",
+            name="train",
+            exist_ok=True,
+            patience=max(5, epochs // 3),
+        )
+        step_bar.update(1)   # step 2
+
+        # Validate 
+        step_bar.set_description("[YOLO] Validating")
+        val_results = model.val(
+            data=yaml_path,
+            split="val",
+            verbose=True,
+        )
+        tqdm.write(f"  [YOLO] Val mAP@50: {val_results.box.map50:.4f}")
+        step_bar.update(1)   # step 3
+
+        # Save 
+        step_bar.set_description("[YOLO] Saving checkpoint")
+        save_yolo()
+        step_bar.update(1)   # step 4 
+
+    tqdm.write("  [YOLO] Training completed")
     return model
 
-#  Entry point
+# Entry point 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fine-tune Faster R-CNN and/or YOLOv8")
@@ -128,7 +186,7 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=DEFAULT_EPOCHS)
     args = parser.parse_args()
 
-    print(f"\n[train.py] Using device: {DEVICE.upper()}")
+    print(f"\n[train.py] Using device: {DEVICE.upper()}\n")
 
     if args.model in ("rcnn", "both"):
         train_rcnn(epochs=args.epochs)
@@ -136,4 +194,4 @@ if __name__ == "__main__":
     if args.model in ("yolo", "both"):
         train_yolo(epochs=args.epochs)
 
-    print("\n[train.py] All done. Checkpoints saved to:", CHECKPOINT_DIR)
+    print(f"\n[train.py] All done. Checkpoints saved to: {CHECKPOINT_DIR}")
