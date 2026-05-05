@@ -22,7 +22,7 @@ from util import save_rcnn, save_yolo, CHECKPOINT_DIR
 #  Config
 
 DEFAULT_EPOCHS    = 15
-RCNN_BATCH_SIZE   = 64
+RCNN_BATCH_SIZE   = 4
 YOLO_BATCH_SIZE   = 64
 YOLO_IMG_SIZE     = 640
 DEVICE            = "cuda" if torch.cuda.is_available() else "cpu"
@@ -40,7 +40,7 @@ def train_rcnn(epochs: int = DEFAULT_EPOCHS):
     model.to(DEVICE)
 
     for epoch in range(1, epochs + 1):
-        # ── Train ──────────────────────────────
+        # Train
         model.train()
         epoch_loss = 0.0
         n_batches  = 0
@@ -62,7 +62,7 @@ def train_rcnn(epochs: int = DEFAULT_EPOCHS):
         scheduler.step()
         avg_loss = epoch_loss / max(n_batches, 1)
 
-        # ── Validation ─────────────────────────
+        # Validation
         val_loss = 0.0
         n_val    = 0
         model.train()   # keep train mode so it returns loss dict on val too

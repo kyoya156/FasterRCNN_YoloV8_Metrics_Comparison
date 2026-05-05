@@ -88,9 +88,9 @@ class CocoLicensePlateDataset(Dataset):
         boxes, labels = [], []
 
         for ann in anns:
-            x, y, w, h = ann["bbox"]           # COCO bbox = [x_min, y_min, w, h]
+            x, y, w, h = [ float(v) for v in ann["bbox"]] # COCO bbox = [x_min, y_min, w, h]
             boxes.append([x, y, x + w, y + h]) # convert to [x1,y1,x2,y2]
-            labels.append(ann["category_id"])
+            labels.append(int(ann["category_id"]))
 
         target = {
             "boxes":    torch.tensor(boxes,  dtype=torch.float32) if boxes  else torch.zeros((0, 4), dtype=torch.float32),
@@ -124,7 +124,7 @@ def get_rcnn_dataloader(split="train", batch_size=4, num_workers=0, shuffle=None
         batch_size=batch_size,
         shuffle=shuffle,
         num_workers=num_workers,
-        collate_fn=collate_fn(),
+        collate_fn=collate_fn,
     ), dataset.num_classes
 
 #  2.  YOLO Dataset path helper
