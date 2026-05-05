@@ -13,3 +13,7 @@ data/Yolo/*
 *.pt
 
 src/__pycache__/*
+
+results/*
+runs/*
+checkpoints/*
