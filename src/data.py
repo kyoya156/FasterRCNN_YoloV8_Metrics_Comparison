@@ -17,8 +17,6 @@ Expected folder structure (matching your screenshot):
       ├── test/          # images + labels/
       └── data.yaml
 """
-
-import os
 import json
 import torch
 from pathlib import Path

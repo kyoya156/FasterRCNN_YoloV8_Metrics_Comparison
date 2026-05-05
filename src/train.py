@@ -12,7 +12,6 @@ Usage:
 
 import argparse
 import torch
-from pathlib import Path
 from tqdm import tqdm
 
 from data import get_rcnn_dataloader, get_yolo_yaml_path

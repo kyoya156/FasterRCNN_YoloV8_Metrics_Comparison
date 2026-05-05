@@ -8,7 +8,6 @@ Shared utilities:
   - Pretty console printer
 """
 
-import os
 import json
 import time
 import torch
