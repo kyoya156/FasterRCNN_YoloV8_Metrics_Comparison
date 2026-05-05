@@ -156,7 +156,7 @@ def train_yolo(epochs: int = DEFAULT_EPOCHS):
             name="train",
             exist_ok=True,
             patience=max(5, epochs // 3),
-            cache = True,  # cache dataset in memory for faster training (if it fits)
+            cache = "disk",  # cache dataset on disk for faster training (if it fits)
         )
         step_bar.update(1)   # step 2
 
